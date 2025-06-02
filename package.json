@@ -4,7 +4,8 @@
   "scripts": {
     "install": "cd backend && npm install && cd ../client && npm install",
     "dev": "concurrently \"npm run dev --prefix backend\" \"npm start --prefix client\"",
-    "start": "npm run dev"
+    "build": "cd client && npm run build",
+    "start": "npm run build && NODE_ENV=production node backend/src/index.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
