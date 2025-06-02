@@ -2,13 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API_BASE_URL from '../config';
 
+const LOCAL_STORAGE_KEY = 'onboardingProgress';
+
 const UserOnboarding = () => {
-  const [currentStep, setCurrentStep] = useState(1);
+  // Try to load progress from localStorage
+  const savedProgress = (() => {
+    try {
+      return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY));
+    } catch {
+      return null;
+    }
+  })();
+
+  const [currentStep, setCurrentStep] = useState(savedProgress?.currentStep || 1);
   const [formConfig, setFormConfig] = useState({
     page2: ['aboutMe', 'birthdate'],
     page3: ['address']
   });
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(savedProgress?.formData || {
     email: '',
     password: '',
     aboutMe: '',
@@ -20,6 +31,9 @@ const UserOnboarding = () => {
   });
   const [birthdateError, setBirthdateError] = useState('');
   const [aboutMeError, setAboutMeError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [addressErrors, setAddressErrors] = useState({ streetAddress: '', city: '', state: '', zip: '' });
 
   const navigate = useNavigate();
 
@@ -36,25 +50,47 @@ const UserOnboarding = () => {
       .catch(() => {});
   }, []);
 
+  // Save progress to localStorage after Step 1 is completed
+  useEffect(() => {
+    if (formData.email && formData.password) {
+      localStorage.setItem(
+        LOCAL_STORAGE_KEY,
+        JSON.stringify({ currentStep, formData })
+      );
+    }
+  }, [currentStep, formData]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-    if (name === 'birthdate') {
-      setBirthdateError('');
-    }
-    if (name === 'aboutMe') {
-      setAboutMeError('');
+    if (name === 'birthdate') setBirthdateError('');
+    if (name === 'aboutMe') setAboutMeError('');
+    if (name === 'email') setEmailError('');
+    if (name === 'password') setPasswordError('');
+    if (['streetAddress', 'city', 'state', 'zip'].includes(name)) {
+      setAddressErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    // Check if birthdate/aboutMe are required on this step
-    const stepConfig = currentStep === 2 ? formConfig.page2 : currentStep === 3 ? formConfig.page3 : [];
+  // Validation function for current step
+  const validateCurrentStep = () => {
     let hasError = false;
+    // Step 1 validation
+    if (currentStep === 1) {
+      if (!formData.email.trim()) {
+        setEmailError('Email is required.');
+        hasError = true;
+      }
+      if (!formData.password.trim()) {
+        setPasswordError('Password is required.');
+        hasError = true;
+      }
+    }
+    // Step 2/3 validation
+    const stepConfig = currentStep === 2 ? formConfig.page2 : currentStep === 3 ? formConfig.page3 : [];
     if (stepConfig.includes('birthdate') && !formData.birthdate) {
       setBirthdateError('Birthdate is required.');
       hasError = true;
@@ -63,7 +99,32 @@ const UserOnboarding = () => {
       setAboutMeError('About Me is required.');
       hasError = true;
     }
-    if (hasError) return;
+    if (stepConfig.includes('address')) {
+      let addrErrs = { streetAddress: '', city: '', state: '', zip: '' };
+      if (!formData.streetAddress.trim()) {
+        addrErrs.streetAddress = 'Street address is required.';
+        hasError = true;
+      }
+      if (!formData.city.trim()) {
+        addrErrs.city = 'City is required.';
+        hasError = true;
+      }
+      if (!formData.state.trim()) {
+        addrErrs.state = 'State is required.';
+        hasError = true;
+      }
+      if (!formData.zip.trim()) {
+        addrErrs.zip = 'ZIP code is required.';
+        hasError = true;
+      }
+      setAddressErrors(addrErrs);
+    }
+    return !hasError;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateCurrentStep()) return;
     try {
       const transformedData = {
         email: formData.email,
@@ -85,6 +146,7 @@ const UserOnboarding = () => {
       });
       if (response.ok) {
         alert('Thank you for submitting your information!');
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
         navigate('/data');
       }
     } catch (error) {
@@ -113,6 +175,10 @@ const UserOnboarding = () => {
   const handleNext = () => {
     setBirthdateError('');
     setAboutMeError('');
+    setEmailError('');
+    setPasswordError('');
+    setAddressErrors({ streetAddress: '', city: '', state: '', zip: '' });
+    if (!validateCurrentStep()) return;
     if (nextStepWithFields) {
       setCurrentStep(nextStepWithFields);
     }
@@ -133,6 +199,9 @@ const UserOnboarding = () => {
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               required
             />
+            {emailError && (
+              <div className="text-red-600 text-sm mt-1">{emailError}</div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Password</label>
@@ -144,6 +213,9 @@ const UserOnboarding = () => {
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               required
             />
+            {passwordError && (
+              <div className="text-red-600 text-sm mt-1">{passwordError}</div>
+            )}
           </div>
         </div>
       );
@@ -196,6 +268,9 @@ const UserOnboarding = () => {
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 required
               />
+              {addressErrors.streetAddress && (
+                <div className="text-red-600 text-sm mt-1">{addressErrors.streetAddress}</div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">City</label>
@@ -207,6 +282,9 @@ const UserOnboarding = () => {
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 required
               />
+              {addressErrors.city && (
+                <div className="text-red-600 text-sm mt-1">{addressErrors.city}</div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">State</label>
@@ -218,6 +296,9 @@ const UserOnboarding = () => {
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 required
               />
+              {addressErrors.state && (
+                <div className="text-red-600 text-sm mt-1">{addressErrors.state}</div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">ZIP Code</label>
@@ -229,6 +310,9 @@ const UserOnboarding = () => {
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 required
               />
+              {addressErrors.zip && (
+                <div className="text-red-600 text-sm mt-1">{addressErrors.zip}</div>
+              )}
             </div>
           </>
         )}
