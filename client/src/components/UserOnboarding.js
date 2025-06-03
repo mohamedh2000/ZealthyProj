@@ -37,6 +37,12 @@ const UserOnboarding = () => {
 
   const navigate = useNavigate();
 
+  // Email validation function
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/admin/config`)
       .then(res => res.json())
@@ -66,9 +72,18 @@ const UserOnboarding = () => {
       ...prev,
       [name]: value
     }));
+    
+    // Validate email on change
+    if (name === 'email') {
+      if (value && !validateEmail(value)) {
+        setEmailError('Please enter a valid email address.');
+      } else {
+        setEmailError('');
+      }
+    }
+    
     if (name === 'birthdate') setBirthdateError('');
     if (name === 'aboutMe') setAboutMeError('');
-    if (name === 'email') setEmailError('');
     if (name === 'password') setPasswordError('');
     if (['streetAddress', 'city', 'state', 'zip'].includes(name)) {
       setAddressErrors(prev => ({ ...prev, [name]: '' }));
@@ -83,9 +98,15 @@ const UserOnboarding = () => {
       if (!formData.email.trim()) {
         setEmailError('Email is required.');
         hasError = true;
+      } else if (!validateEmail(formData.email)) {
+        setEmailError('Please enter a valid email address.');
+        hasError = true;
       }
       if (!formData.password.trim()) {
         setPasswordError('Password is required.');
+        hasError = true;
+      } else if (formData.password.length < 8) {
+        setPasswordError('Password must be at least 8 characters long.');
         hasError = true;
       }
     }
@@ -148,9 +169,16 @@ const UserOnboarding = () => {
         alert('Thank you for submitting your information!');
         localStorage.removeItem(LOCAL_STORAGE_KEY);
         navigate('/data');
+      } else {
+        const data = await response.json();
+        if (response.status === 400) {
+          setEmailError(data.error || 'Invalid email address.');
+        } else {
+          setEmailError('An error occurred. Please try again.');
+        }
       }
     } catch (error) {
-      // handle error
+      setEmailError('An error occurred. Please try again.');
     }
   };
 
